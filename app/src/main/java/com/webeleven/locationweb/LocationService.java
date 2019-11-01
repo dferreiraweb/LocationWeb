@@ -2,6 +2,7 @@ package com.webeleven.locationweb;
 
 import android.app.ActivityManager;
 import android.app.Notification;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -12,6 +13,7 @@ import android.location.Location;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
@@ -36,9 +38,13 @@ public class LocationService extends Service {
     private static final String TAG = LocationService.class.getSimpleName();
     private static final String CHANNEL_ID = "channel_01";
     static final String ACTION_BROADCAST = PACKAGE_NAME + ".broadcast";
+
     static final String EXTRA_LOCATION = PACKAGE_NAME + ".location";
-    private static final String EXTRA_STARTED_FROM_NOTIFICATION = PACKAGE_NAME + ".started_from_notification";
+    private static final String EXTRA_STARTED_FROM_NOTIFICATION = PACKAGE_NAME +
+            ".started_from_notification";
+
     private final IBinder mBinder = new LocalBinder();
+
     private static final long UPDATE_INTERVAL_IN_MILLISECONDS = 1000 * 30; //30seg
     private static final long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS = UPDATE_INTERVAL_IN_MILLISECONDS / 2;
     private static final int NOTIFICATION_ID = 12345678;
@@ -52,14 +58,13 @@ public class LocationService extends Service {
     private Handler mServiceHandler;
     private Location mLocation;
 
-
-    public LocationService() {} //Construtor
+    public LocationService() {
+    }
 
     @Override
     public void onCreate() {
-        super.onCreate();
-
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+
         mLocationCallback = new LocationCallback() {
             @Override
             public void onLocationResult(LocationResult locationResult) {
@@ -67,26 +72,29 @@ public class LocationService extends Service {
                 onNewLocation(locationResult.getLastLocation());
             }
         };
-    }
 
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        mChangingConfiguration = true;
-    }
+        createLocationRequest();
+        getLastLocation();
 
-    @Nullable
-    @Override
-    public IBinder onBind(Intent intent) {
-        Log.i(TAG, "onBind()");
-        stopForeground(true);
-        mChangingConfiguration = false;
-        return mBinder;
+        HandlerThread handlerThread = new HandlerThread(TAG);
+        handlerThread.start();
+        mServiceHandler = new Handler(handlerThread.getLooper());
+        mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+
+        // Android O requires a Notification Channel.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            CharSequence name = getString(R.string.app_name);
+            // Create the channel for the notification
+            NotificationChannel mChannel =
+                    new NotificationChannel(CHANNEL_ID, name, NotificationManager.IMPORTANCE_DEFAULT);
+
+            mNotificationManager.createNotificationChannel(mChannel);
+        }
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.i(TAG, "Serviço de Localização iniciado");
+        Log.i(TAG, "Service started");
         boolean startedFromNotification = intent.getBooleanExtra(EXTRA_STARTED_FROM_NOTIFICATION,
                 false);
 
@@ -100,24 +108,80 @@ public class LocationService extends Service {
         return START_STICKY;
     }
 
-    public class LocalBinder extends Binder {
-        LocationService getService() { return LocationService.this; }
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        mChangingConfiguration = true;
     }
 
-    private void onNewLocation(Location location) {
-        Log.i(TAG, "New location: " + location);
+    @Override
+    public IBinder onBind(Intent intent) {
+        // Called when a client (MainActivity in case of this sample) comes to the foreground
+        // and binds with this service. The service should cease to be a foreground service
+        // when that happens.
+        Log.i(TAG, "in onBind()");
+        stopForeground(true);
+        mChangingConfiguration = false;
+        return mBinder;
+    }
 
-        mLocation = location;
+    @Override
+    public void onRebind(Intent intent) {
+        // Called when a client (MainActivity in case of this sample) returns to the foreground
+        // and binds once again with this service. The service should cease to be a foreground
+        // service when that happens.
+        Log.i(TAG, "in onRebind()");
+        stopForeground(true);
+        mChangingConfiguration = false;
+        super.onRebind(intent);
+    }
 
-        // Notify anyone listening for broadcasts about the new location.
-        // Notifique qualquer broadcast que esteja ouvindo transmissões sobre o novo local.
-        Intent intent = new Intent(ACTION_BROADCAST);
-        intent.putExtra(EXTRA_LOCATION, location);
-        LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(intent);
+    @Override
+    public boolean onUnbind(Intent intent) {
+        Log.i(TAG, "Last client unbound from service");
 
-        // Atualiza o conteúdo da notificação se estiver executando como um serviço em primeiro plano.
-        if (serviceIsRunningInForeground(this)) {
-            mNotificationManager.notify(NOTIFICATION_ID, getNotification());
+        // Called when the last client (MainActivity in case of this sample) unbinds from this
+        // service. If this method is called due to a configuration change in MainActivity, we
+        // do nothing. Otherwise, we make this service a foreground service.
+        if (!mChangingConfiguration && Utils.requestingLocationUpdates(this)) {
+            Log.i(TAG, "Starting foreground service");
+
+            startForeground(NOTIFICATION_ID, getNotification());
+        }
+        return true; // Ensures onRebind() is called when a client re-binds.
+    }
+
+    @Override
+    public void onDestroy() {
+        mServiceHandler.removeCallbacksAndMessages(null);
+    }
+
+    public void requestLocationUpdates() {
+        Log.i(TAG, "Requesting location updates");
+        Utils.setRequestingLocationUpdates(this, true);
+        startService(new Intent(getApplicationContext(), LocationService.class));
+        try {
+            mFusedLocationClient.requestLocationUpdates(mLocationRequest,
+                    mLocationCallback, Looper.myLooper());
+        } catch (SecurityException unlikely) {
+            Utils.setRequestingLocationUpdates(this, false);
+            Log.e(TAG, "Lost location permission. Could not request updates. " + unlikely);
+        }
+    }
+
+    /**
+     * Removes location updates. Note that in this sample we merely log the
+     * {@link SecurityException}.
+     */
+    public void removeLocationUpdates() {
+        Log.i(TAG, "Removing location updates");
+        try {
+            mFusedLocationClient.removeLocationUpdates(mLocationCallback);
+            Utils.setRequestingLocationUpdates(this, false);
+            stopSelf();
+        } catch (SecurityException unlikely) {
+            Utils.setRequestingLocationUpdates(this, true);
+            Log.e(TAG, "Lost location permission. Could not remove updates. " + unlikely);
         }
     }
 
@@ -126,11 +190,14 @@ public class LocationService extends Service {
 
         CharSequence text = Utils.getLocationText(mLocation);
 
+        // Extra to help us figure out if we arrived in onStartCommand via the notification or not.
         intent.putExtra(EXTRA_STARTED_FROM_NOTIFICATION, true);
 
+        // The PendingIntent that leads to a call to onStartCommand() in this service.
         PendingIntent servicePendingIntent = PendingIntent.getService(this, 0, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT);
 
+        // The PendingIntent to launch activity.
         PendingIntent activityPendingIntent = PendingIntent.getActivity(this, 0,
                 new Intent(this, ActivityMain.class), 0);
 
@@ -155,40 +222,39 @@ public class LocationService extends Service {
         return builder.build();
     }
 
-    public boolean serviceIsRunningInForeground(Context context) {
-        ActivityManager manager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
-        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
-            if (getClass().getName().equals(service.service.getClassName())) {
-                if (service.foreground) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    public void requestLocationUpdates() {
-        Log.i(TAG, "Buscando localização atual");
-        Utils.setRequestingLocationUpdates(this, true);
-        startService(new Intent(getApplicationContext(), LocationService.class));
+    private void getLastLocation() {
         try {
-            mFusedLocationClient.requestLocationUpdates(mLocationRequest,
-                    mLocationCallback, Looper.myLooper());
+            mFusedLocationClient.getLastLocation()
+                    .addOnCompleteListener(new OnCompleteListener<Location>() {
+                        @Override
+                        public void onComplete(@NonNull Task<Location> task) {
+                            if (task.isSuccessful() && task.getResult() != null) {
+                                mLocation = task.getResult();
+                            } else {
+                                Log.w(TAG, "Failed to get location.");
+                            }
+                        }
+                    });
         } catch (SecurityException unlikely) {
-            Utils.setRequestingLocationUpdates(this, false);
-            Log.e(TAG, "Permissão de localização perdida. Não foi possivel receber atualizações. " + unlikely);
+            Log.e(TAG, "Lost location permission." + unlikely);
         }
     }
 
-    public void removeLocationUpdates() {
-        Log.i(TAG, "Removendo atualizações de localização");
-        try {
-            mFusedLocationClient.removeLocationUpdates(mLocationCallback);
-            Utils.setRequestingLocationUpdates(this, false);
-            stopSelf();
-        } catch (SecurityException unlikely) {
-            Utils.setRequestingLocationUpdates(this, true);
-            Log.e(TAG, "Permissão de localização perdida. Não foi possivel remover atualizações. " + unlikely);
+    private void onNewLocation(Location location) {
+        Log.i(TAG, "New location: " + location);
+
+        mLocation = location;
+
+        // Notify anyone listening for broadcasts about the new location.
+        Intent intent = new Intent(ACTION_BROADCAST);
+        intent.putExtra(EXTRA_LOCATION, location);
+        LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(intent);
+
+
+
+        // Update notification content if running as a foreground service.
+        if (serviceIsRunningInForeground(this)) {
+            mNotificationManager.notify(NOTIFICATION_ID, getNotification());
         }
     }
 
@@ -199,23 +265,24 @@ public class LocationService extends Service {
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
     }
 
-    private void getLastLocation() {
-        try {
-            mFusedLocationClient.getLastLocation()
-                    .addOnCompleteListener(new OnCompleteListener<Location>() {
-                        @Override
-                        public void onComplete(@NonNull Task<Location> task) {
-                            if (task.isSuccessful() && task.getResult() != null) {
-                                mLocation = task.getResult();
-                            } else {
-                                Log.w(TAG, "Falha ao receber localização.");
-                            }
-                        }
-                    });
-        } catch (SecurityException unlikely) {
-            Log.e(TAG, "Permissão de localização perdida." + unlikely);
+    public class LocalBinder extends Binder {
+        LocationService getService() {
+            return LocationService.this;
         }
     }
 
+    public boolean serviceIsRunningInForeground(Context context) {
+        ActivityManager manager = (ActivityManager) context.getSystemService(
+                Context.ACTIVITY_SERVICE);
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(
+                Integer.MAX_VALUE)) {
+            if (getClass().getName().equals(service.service.getClassName())) {
+                if (service.foreground) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
 }

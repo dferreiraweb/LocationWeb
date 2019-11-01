@@ -31,18 +31,33 @@ import com.google.android.material.snackbar.Snackbar;
 
 public class ActivityMain extends AppCompatActivity implements SharedPreferences.OnSharedPreferenceChangeListener{
 
+    private static final String TAG = ActivityMain.class.getSimpleName().toUpperCase();
     private static final int REQUEST_PERMISSIONS_REQUEST_CODE = 34;
     private MyReceiver myReceiver;
     private LocationService mService = null;
-    private boolean mBound = false; //Define se o serviço esta ativo ou não
-    private static String TAG = ActivityMain.class.getSimpleName().toUpperCase();
+    private boolean mBound = false;
 
-    private TextView textView_versaoAndroid;
-    private TextView textView_Latitude;
-    private TextView textView_Longitude;
-
-    private Button button_ServicoOff;
     private Button button_ServicoOn;
+    private Button button_ServicoOff;
+
+    private TextView textView_Longitude;
+    private TextView textView_Latitude;
+
+    private final ServiceConnection mServiceConnection = new ServiceConnection() {
+
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            LocationService.LocalBinder binder = (LocationService.LocalBinder) service;
+            mService = binder.getService();
+            mBound = true;
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            mService = null;
+            mBound = false;
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,12 +65,95 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
         myReceiver = new MyReceiver();
         setContentView(R.layout.activity_main);
 
+        // Check that the user hasn't revoked permissions by going to Settings.
         if (Utils.requestingLocationUpdates(this)) {
             if (!checkPermissions()) {
                 requestPermissions();
             }
         }
+    }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+        PreferenceManager.getDefaultSharedPreferences(this)
+                .registerOnSharedPreferenceChangeListener(this);
+
+        textView_Longitude = findViewById(R.id.textView_Longitude);
+        textView_Latitude = findViewById(R.id.textView_Latitude);
+
+        button_ServicoOn = findViewById(R.id.button_ServicoOff);
+        button_ServicoOff = findViewById(R.id.button_ServicoOn);
+
+        button_ServicoOn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (!checkPermissions()) {
+                    requestPermissions();
+                } else {
+                    mService.requestLocationUpdates();
+                }
+            }
+        });
+
+        button_ServicoOff.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                mService.removeLocationUpdates();
+            }
+        });
+
+        // Restore the state of the buttons when the activity (re)launches.
+        setButtonsState(Utils.requestingLocationUpdates(this));
+
+        // Bind to the service. If the service is in foreground mode, this signals to the service
+        // that since this activity is in the foreground, the service can exit foreground mode.
+        bindService(new Intent(this, LocationService.class), mServiceConnection,
+                Context.BIND_AUTO_CREATE);
+        Intent serviceIntent = new Intent(this, LocationListener.class);
+        startService(serviceIntent);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        LocalBroadcastManager.getInstance(this).registerReceiver(myReceiver,
+                new IntentFilter(LocationService.ACTION_BROADCAST));
+    }
+
+    @Override
+    protected void onPause() {
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(myReceiver);
+        Log.d("CICLE", "Activity Pausada");
+        super.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+        if (mBound) {
+            // Unbind from the service. This signals to the service that this activity is no longer
+            // in the foreground, and the service can respond by promoting itself to a foreground
+            // service.
+            unbindService(mServiceConnection);
+            mBound = false;
+        }
+        PreferenceManager.getDefaultSharedPreferences(this)
+                .unregisterOnSharedPreferenceChangeListener(this);
+        super.onStop();
+        Log.d("CICLE", "Activity Pausada");
+    }
+
+    @Override
+    protected void onDestroy() {
+        mService.requestLocationUpdates();
+        Log.d("CICLE", "Activity destruida");
+
+        super.onDestroy();
+    }
+
+    private boolean checkPermissions() {
+        return  PackageManager.PERMISSION_GRANTED == ActivityCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_FINE_LOCATION);
     }
 
     private void requestPermissions() {
@@ -63,6 +161,8 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
                 ActivityCompat.shouldShowRequestPermissionRationale(this,
                         Manifest.permission.ACCESS_FINE_LOCATION);
 
+        // Provide an additional rationale to the user. This would happen if the user denied the
+        // request previously, but didn't check the "Don't ask again" checkbox.
         if (shouldProvideRationale) {
             Log.i(TAG, "Displaying permission rationale to provide additional context.");
             Snackbar.make(
@@ -89,27 +189,6 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
                     REQUEST_PERMISSIONS_REQUEST_CODE);
         }
     }
-
-    private boolean checkPermissions() {
-        return  PackageManager.PERMISSION_GRANTED == ActivityCompat.checkSelfPermission(this,
-                Manifest.permission.ACCESS_FINE_LOCATION);
-    }
-
-    private final ServiceConnection mServiceConnection = new ServiceConnection() {
-
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service) {
-            LocationService.LocalBinder binder = (LocationService.LocalBinder) service;
-            mService = binder.getService();
-            mBound = true;
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-            mService = null;
-            mBound = false;
-        }
-    };
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
@@ -156,100 +235,11 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
             if (location != null) {
                 Toast.makeText(ActivityMain.this, Utils.getLocationText(location),
                         Toast.LENGTH_SHORT).show();
-
-                textView_Latitude.setText(Utils.getLocationLatitude(location));
-                textView_Longitude.setText(Utils.getLocationLongitude(location));
-
+                Log.d(TAG, "Localização recebida no broadcast: " + location);
+                textView_Longitude.setText(location.getLongitude()+"");
+                textView_Latitude.setText(location.getLatitude()+"");
             }
         }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        LocalBroadcastManager.getInstance(this).registerReceiver(myReceiver,
-                new IntentFilter(LocationService.ACTION_BROADCAST));
-    }
-
-    @Override
-    protected void onPause() {
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(myReceiver);
-        Log.d("CICLE", "Activity Pausada");
-        super.onPause();
-    }
-
-    @Override
-    protected void onStart() {
-        super.onStart();
-        PreferenceManager.getDefaultSharedPreferences(this)
-                .registerOnSharedPreferenceChangeListener(this);
-
-        Utils utils = new Utils(this);
-
-        textView_versaoAndroid = findViewById(R.id.textView_versao);
-        textView_Latitude = findViewById(R.id.textView_Latitude);
-        textView_Longitude = findViewById(R.id.textView_Longitude);
-        button_ServicoOff = findViewById(R.id.button_ServicoOn);
-        button_ServicoOn = findViewById(R.id.button_ServicoOff);
-
-        //Popular TextViews
-        textView_versaoAndroid.setText(utils.versaoAndroid());
-
-        button_ServicoOn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                if (!checkPermissions()) {
-                    requestPermissions();
-                } else {
-                    mService.requestLocationUpdates();
-                    mBound = true;
-                }
-            }
-        });
-
-
-        button_ServicoOff.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                mService.removeLocationUpdates();
-                mBound = false;
-            }
-        });
-
-
-
-        // Restore the state of the buttons when the activity (re)launches.
-        setButtonsState(Utils.requestingLocationUpdates(this));
-
-        // Bind to the service. If the service is in foreground mode, this signals to the service
-        // that since this activity is in the foreground, the service can exit foreground mode.
-        bindService(new Intent(this, LocationService.class), mServiceConnection,
-                Context.BIND_AUTO_CREATE);
-        Intent serviceIntent = new Intent(this, LocationListener.class);
-        startService(serviceIntent);
-    }
-
-    @Override
-    protected void onStop() {
-        if (mBound) {
-            // Unbind from the service. This signals to the service that this activity is no longer
-            // in the foreground, and the service can respond by promoting itself to a foreground
-            // service.
-            unbindService(mServiceConnection);
-            mBound = false;
-        }
-        PreferenceManager.getDefaultSharedPreferences(this)
-                .unregisterOnSharedPreferenceChangeListener(this);
-        super.onStop();
-        Log.d(TAG, "Activity Pausada");
-    }
-
-    @Override
-    protected void onDestroy() {
-        mService.requestLocationUpdates();
-        Log.d(TAG, "Activity destruida");
-
-        super.onDestroy();
     }
 
     @Override
@@ -263,16 +253,16 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
 
     private void setButtonsState(boolean requestingLocationUpdates) {
         if (requestingLocationUpdates) {
-//            button_Servico.setCompoundDrawablesWithIntrinsicBounds(0, 0, R.drawable.icon_on, 0);
             button_ServicoOn.setVisibility(View.GONE);
             button_ServicoOff.setVisibility(View.VISIBLE);
-//            mRequestLocationUpdatesButton.setEnabled(false);
-//            mRemoveLocationUpdatesButton.setEnabled(true);
         } else {
-//            button_Servico.setCompoundDrawablesWithIntrinsicBounds(R.drawable.icon_off, 0, 0, 0);
-            button_ServicoOff.setVisibility(View.GONE);
             button_ServicoOn.setVisibility(View.VISIBLE);
+            button_ServicoOff.setVisibility(View.GONE);
         }
     }
+
+
+
+
 
 }
