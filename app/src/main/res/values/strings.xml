@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">LocationWeb</string>
+    <string name="iniciar_activity">Iniciar Activity</string>
+    <string name="parar_aplicacao">Encerrar</string>
+    <string name="localizacao_atualizada">Localização atualizada: %1$s</string>
+    <string name="permissao_localizacao">A permissão de Localização é necessária para o App funcionar.</string>
+    <string name="ok">OK</string>
+    <string name="permissao_negada_explicacao">Permissão negada, mas é necessária para o App funcionar.</string>
+    <string name="configuracoes">Configurações</string>
+</resources>
