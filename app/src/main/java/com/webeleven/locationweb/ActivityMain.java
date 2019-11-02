@@ -6,6 +6,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import android.Manifest;
+import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -17,6 +18,7 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
@@ -40,8 +42,12 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
     private Button button_ServicoOn;
     private Button button_ServicoOff;
 
+    private TextView textView_versao;
     private TextView textView_Longitude;
     private TextView textView_Latitude;
+    private TextView textView_statusGps;
+    private TextView textView_statusBluetooth;
+    private TextView textView_data;
 
     private final ServiceConnection mServiceConnection = new ServiceConnection() {
 
@@ -69,6 +75,8 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
         if (Utils.requestingLocationUpdates(this)) {
             if (!checkPermissions()) {
                 requestPermissions();
+            }else {
+
             }
         }
     }
@@ -81,17 +89,26 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
 
         textView_Longitude = findViewById(R.id.textView_Longitude);
         textView_Latitude = findViewById(R.id.textView_Latitude);
+        textView_statusGps = findViewById(R.id.textView_StatusGpsOff);
+        textView_statusBluetooth = findViewById(R.id.textView_StatusBluetoothOff);
+        textView_data = findViewById(R.id.textView_UltimoEnvio);
+        textView_versao = findViewById(R.id.textView_versao);
 
         button_ServicoOn = findViewById(R.id.button_ServicoOff);
         button_ServicoOff = findViewById(R.id.button_ServicoOn);
+
 
         button_ServicoOn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 if (!checkPermissions()) {
                     requestPermissions();
+                    textView_statusGps.setTextColor(getResources().getColor(R.color.colorOff));
+                    textView_statusGps.setText("OFF");
                 } else {
                     mService.requestLocationUpdates();
+                    textView_statusGps.setText("ON");
+                    textView_statusGps.setTextColor(getResources().getColor(R.color.colorAccent));
                 }
             }
         });
@@ -100,8 +117,13 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
             @Override
             public void onClick(View view) {
                 mService.removeLocationUpdates();
+                textView_statusGps.setTextColor(getResources().getColor(R.color.colorOff));
+                textView_statusGps.setText("OFF");
             }
         });
+
+
+        textView_versao.setText(Build.MODEL);
 
         // Restore the state of the buttons when the activity (re)launches.
         setButtonsState(Utils.requestingLocationUpdates(this));
@@ -174,7 +196,7 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
                         public void onClick(View view) {
                             // Request permission
                             ActivityCompat.requestPermissions(ActivityMain.this,
-                                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.BLUETOOTH, Manifest.permission.BLUETOOTH_ADMIN},
                                     REQUEST_PERMISSIONS_REQUEST_CODE);
                         }
                     })
@@ -185,7 +207,7 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
             // sets the permission in a given state or the user denied the permission
             // previously and checked "Never ask again".
             ActivityCompat.requestPermissions(ActivityMain.this,
-                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.BLUETOOTH, Manifest.permission.BLUETOOTH_ADMIN},
                     REQUEST_PERMISSIONS_REQUEST_CODE);
         }
     }
@@ -238,6 +260,7 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
                 Log.d(TAG, "Localização recebida no broadcast: " + location);
                 textView_Longitude.setText(location.getLongitude()+"");
                 textView_Latitude.setText(location.getLatitude()+"");
+                textView_data.setText(Utils.date);
             }
         }
     }
@@ -258,6 +281,17 @@ public class ActivityMain extends AppCompatActivity implements SharedPreferences
         } else {
             button_ServicoOn.setVisibility(View.VISIBLE);
             button_ServicoOff.setVisibility(View.GONE);
+        }
+    }
+
+
+    private void checkBluetooth() {
+        BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        if (mBluetoothAdapter == null) {
+        } else if (!mBluetoothAdapter.isEnabled()) {
+            // Bluetooth is not enabled :)
+        } else {
+            // Bluetooth is enabled
         }
     }
 

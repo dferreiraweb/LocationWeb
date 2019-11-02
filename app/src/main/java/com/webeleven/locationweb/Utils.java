@@ -2,6 +2,7 @@ package com.webeleven.locationweb;
 
 import android.content.Context;
 import android.location.Location;
+import android.os.Build;
 import android.preference.PreferenceManager;
 import android.util.Log;
 
@@ -26,6 +27,7 @@ public class Utils {
 
     static final String KEY_REQUESTING_LOCATION_UPDATES = "requesting_locaction_updates";
     private static Retrofit retrofit;
+    public static String date;
 
     static boolean requestingLocationUpdates(Context context) {
         return PreferenceManager.getDefaultSharedPreferences(context)
@@ -49,6 +51,13 @@ public class Utils {
         return context.getString(R.string.localizacao_atualizada,
                 DateFormat.getDateTimeInstance().format(new Date()));
     }
+
+    static String setDate(String _date) {
+        date = _date;
+        return date;
+    }
+
+
 
     static void sendToServer(Location location) {
 
@@ -77,6 +86,8 @@ public class Utils {
         String time = android.text.format.DateFormat.format("dd-MM-yyyy---hh-mm-ss", date).toString();
         Log.d("LOCATION", "DATE: " + android.text.format.DateFormat.format("dd-MM-yyyy-hh:mm:ss", date));
 
+        setDate(android.text.format.DateFormat.format("dd/MM/yyyy  hh:mm:ss", date)+"");
+
         Call<JSONObject> call = new Utils().getRetrofitService().sendLocation(latitude, longitude, time);
 
         call.enqueue(new Callback<JSONObject>() {
@@ -103,6 +114,11 @@ public class Utils {
 
     public RetrofitService getRetrofitService() {
         return retrofit.create(RetrofitService.class);
+    }
+
+    static String getAndroid() {
+
+        return Build.MODEL + " - SDK: " + Build.VERSION.SDK_INT;
     }
 
 }

@@ -111,7 +111,7 @@
             app:layout_constraintTop_toTopOf="@id/textView_LongitudeTitle" />
 
         <TextView
-            android:id="@+id/textViewStatusBluetooth"
+            android:id="@+id/textView_StatusBluetooth"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -119,11 +119,12 @@
             android:textColor="#E0E0E0"
             android:textSize="18dp"
             android:textStyle="bold"
+            android:visibility="gone"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/textView_LongitudeTitle" />
 
         <TextView
-            android:id="@+id/textViewStatusBluetoothOff"
+            android:id="@+id/textView_StatusBluetoothOff"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginLeft="10dp"
@@ -132,7 +133,8 @@
             android:textColor="#FF3E3E"
             android:textSize="18dp"
             android:textStyle="bold"
-            app:layout_constraintStart_toEndOf="@+id/textViewStatusBluetooth"
+            android:visibility="gone"
+            app:layout_constraintStart_toEndOf="@+id/textView_StatusBluetooth"
             app:layout_constraintTop_toBottomOf="@+id/textView_LongitudeTitle" />
 
         <Switch
@@ -141,11 +143,12 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
             android:layout_marginLeft="10dp"
-            app:layout_constraintStart_toEndOf="@+id/textViewStatusBluetoothOff"
-            app:layout_constraintTop_toTopOf="@+id/textViewStatusBluetooth" />
+            android:visibility="gone"
+            app:layout_constraintStart_toEndOf="@+id/textView_StatusBluetoothOff"
+            app:layout_constraintTop_toTopOf="@+id/textView_StatusBluetooth" />
 
         <TextView
-            android:id="@+id/textViewStatusGps"
+            android:id="@+id/textView_StatusGps"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -154,10 +157,10 @@
             android:textSize="18dp"
             android:textStyle="bold"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/textViewStatusBluetooth" />
+            app:layout_constraintTop_toBottomOf="@+id/textView_StatusBluetooth" />
 
         <TextView
-            android:id="@+id/textViewStatusGpsOff"
+            android:id="@+id/textView_StatusGpsOff"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
@@ -167,8 +170,8 @@
             android:textColor="#FF3E3E"
             android:textSize="18dp"
             android:textStyle="bold"
-            app:layout_constraintStart_toEndOf="@+id/textViewStatusGps"
-            app:layout_constraintTop_toBottomOf="@+id/textViewStatusBluetooth" />
+            app:layout_constraintStart_toEndOf="@+id/textView_StatusGps"
+            app:layout_constraintTop_toBottomOf="@+id/textView_StatusBluetooth" />
 
         <TextView
             android:id="@+id/textView11"
@@ -180,7 +183,7 @@
             android:textSize="18dp"
             android:textStyle="bold"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/textViewStatusGps" />
+            app:layout_constraintTop_toBottomOf="@+id/textView_StatusGps" />
 
         <TextView
             android:id="@+id/textView_UltimoEnvio"
