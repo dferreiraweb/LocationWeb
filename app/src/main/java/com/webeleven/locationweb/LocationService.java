@@ -81,10 +81,8 @@ public class LocationService extends Service {
         mServiceHandler = new Handler(handlerThread.getLooper());
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
-        // Android O requires a Notification Channel.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             CharSequence name = getString(R.string.app_name);
-            // Create the channel for the notification
             NotificationChannel mChannel =
                     new NotificationChannel(CHANNEL_ID, name, NotificationManager.IMPORTANCE_DEFAULT);
 
@@ -98,13 +96,13 @@ public class LocationService extends Service {
         boolean startedFromNotification = intent.getBooleanExtra(EXTRA_STARTED_FROM_NOTIFICATION,
                 false);
 
-        // We got here because the user decided to remove location updates from the notification.
+        // Chegamos aqui porque o usuário decidiu remover as atualizações de local da notificação.
         if (startedFromNotification) {
             removeLocationUpdates();
             stopSelf();
         }
-        // Tells the system to not try to recreate the service after it has been killed.
 
+        //Diz ao sistema para recriar o serviço caso o processo seja encerrado.
         return START_STICKY;
     }
 
@@ -116,9 +114,7 @@ public class LocationService extends Service {
 
     @Override
     public IBinder onBind(Intent intent) {
-        // Called when a client (MainActivity in case of this sample) comes to the foreground
-        // and binds with this service. The service should cease to be a foreground service
-        // when that happens.
+        // Chamado quando a Activity é instanciada, depois disso o serviço deixa de ser em primeiro plano e fica de fundo dentro da aplicação.
         Log.i(TAG, "in onBind()");
         stopForeground(true);
         mChangingConfiguration = false;
@@ -127,9 +123,7 @@ public class LocationService extends Service {
 
     @Override
     public void onRebind(Intent intent) {
-        // Called when a client (MainActivity in case of this sample) returns to the foreground
-        // and binds once again with this service. The service should cease to be a foreground
-        // service when that happens.
+        // Chamado quando a Activity é instanciada, depois disso o serviço deixa de ser em primeiro plano e fica de fundo dentro da aplicação.
         Log.i(TAG, "in onRebind()");
         stopForeground(true);
         mChangingConfiguration = false;
@@ -140,15 +134,13 @@ public class LocationService extends Service {
     public boolean onUnbind(Intent intent) {
         Log.i(TAG, "Last client unbound from service");
 
-        // Called when the last client (MainActivity in case of this sample) unbinds from this
-        // service. If this method is called due to a configuration change in MainActivity, we
-        // do nothing. Otherwise, we make this service a foreground service.
+        //Caso o app esteja fechado ou seja desvinculado do serviço, então ele passa a ficar em primeiro plano (foreground)
         if (!mChangingConfiguration && Utils.requestingLocationUpdates(this)) {
             Log.i(TAG, "Starting foreground service");
 
             startForeground(NOTIFICATION_ID, getNotification());
         }
-        return true; // Ensures onRebind() is called when a client re-binds.
+        return true; // Garante que o onRebind() seja chamado quando o cliente faz novo vinculo ao serviço.
     }
 
     @Override
@@ -157,7 +149,7 @@ public class LocationService extends Service {
     }
 
     public void requestLocationUpdates() {
-        Log.i(TAG, "Requesting location updates");
+        Log.i(TAG, "Solicitando atualizações de local");
         Utils.setRequestingLocationUpdates(this, true);
         startService(new Intent(getApplicationContext(), LocationService.class));
         try {
@@ -165,23 +157,20 @@ public class LocationService extends Service {
                     mLocationCallback, Looper.myLooper());
         } catch (SecurityException unlikely) {
             Utils.setRequestingLocationUpdates(this, false);
-            Log.e(TAG, "Lost location permission. Could not request updates. " + unlikely);
+            Log.e(TAG, "Perdeu a permissão de localização. Não foi possível solicitar atualizações. " + unlikely);
         }
     }
 
-    /**
-     * Removes location updates. Note that in this sample we merely log the
-     * {@link SecurityException}.
-     */
+
     public void removeLocationUpdates() {
-        Log.i(TAG, "Removing location updates");
+        Log.i(TAG, "Removendo atualizações de local");
         try {
             mFusedLocationClient.removeLocationUpdates(mLocationCallback);
             Utils.setRequestingLocationUpdates(this, false);
             stopSelf();
         } catch (SecurityException unlikely) {
             Utils.setRequestingLocationUpdates(this, true);
-            Log.e(TAG, "Lost location permission. Could not remove updates. " + unlikely);
+            Log.e(TAG, "Perdeu a permissão de localização. Não foi possível remover as atualizações. " + unlikely);
         }
     }
 
@@ -190,14 +179,14 @@ public class LocationService extends Service {
 
         CharSequence text = Utils.getLocationText(mLocation);
 
-        // Extra to help us figure out if we arrived in onStartCommand via the notification or not.
+        // Extra para nos ajudar a descobrir se chegamos ao onStartCommand por meio da notificação ou não.
         intent.putExtra(EXTRA_STARTED_FROM_NOTIFICATION, true);
 
-        // The PendingIntent that leads to a call to onStartCommand() in this service.
+        // O PendingIntent que leva a uma chamada para onStartCommand () neste serviço.
         PendingIntent servicePendingIntent = PendingIntent.getService(this, 0, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT);
 
-        // The PendingIntent to launch activity.
+        // O PendingIntent para iniciar a atividade.
         PendingIntent activityPendingIntent = PendingIntent.getActivity(this, 0,
                 new Intent(this, ActivityMain.class), 0);
 
@@ -214,9 +203,9 @@ public class LocationService extends Service {
                 .setTicker(text)
                 .setWhen(System.currentTimeMillis());
 
-        // Set the Channel ID for Android O.
+        // Define o ID do canal para o Android O.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            builder.setChannelId(CHANNEL_ID); // Channel ID
+            builder.setChannelId(CHANNEL_ID); // ID do Canal de Notificação
         }
 
         return builder.build();
@@ -231,28 +220,28 @@ public class LocationService extends Service {
                             if (task.isSuccessful() && task.getResult() != null) {
                                 mLocation = task.getResult();
                             } else {
-                                Log.w(TAG, "Failed to get location.");
+                                Log.w(TAG, "Falha ao obter o local." + task.getException());
                             }
                         }
                     });
         } catch (SecurityException unlikely) {
-            Log.e(TAG, "Lost location permission." + unlikely);
+            Log.e(TAG, "Permissão de localização perdida." + unlikely);
         }
     }
 
     private void onNewLocation(Location location) {
-        Log.i(TAG, "New location: " + location);
+        Log.i(TAG, "Nova localização: " + location);
 
         mLocation = location;
 
-        // Notify anyone listening for broadcasts about the new location.
+        // Notifique qualquer Broadcast que esteja ouvindo transmissões sobre o novo local.
         Intent intent = new Intent(ACTION_BROADCAST);
         intent.putExtra(EXTRA_LOCATION, location);
         LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(intent);
 
 
 
-        // Update notification content if running as a foreground service.
+        // Atualiza o conteúdo da notificação se estiver executando como um serviço em primeiro plano.
         if (serviceIsRunningInForeground(this)) {
             mNotificationManager.notify(NOTIFICATION_ID, getNotification());
         }
